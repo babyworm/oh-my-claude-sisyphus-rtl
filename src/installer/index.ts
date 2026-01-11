@@ -3601,11 +3601,13 @@ export function install(options: InstallOptions = {}): InstallResult {
     log('Installing slash commands...');
     for (const [filename, content] of Object.entries(COMMAND_DEFINITIONS)) {
       const filepath = join(COMMANDS_DIR, filename);
-      const commandDir = join(COMMANDS_DIR, filename.split('/')[0]);
 
-      // Create command directory if needed
-      if (!existsSync(commandDir)) {
-        mkdirSync(commandDir, { recursive: true });
+      // Create command directory if needed (only for nested paths like 'ultrawork/skill.md')
+      if (filename.includes('/')) {
+        const commandDir = join(COMMANDS_DIR, filename.split('/')[0]);
+        if (!existsSync(commandDir)) {
+          mkdirSync(commandDir, { recursive: true });
+        }
       }
 
       if (existsSync(filepath) && !options.force) {
@@ -3686,11 +3688,14 @@ export function install(options: InstallOptions = {}): InstallResult {
       const hooksConfig = getHooksSettingsConfig();
       const newHooks = hooksConfig.hooks;
 
-      // Deep merge: add our hooks without overwriting existing ones
+      // Deep merge: add our hooks, or update if --force is used
       for (const [eventType, eventHooks] of Object.entries(newHooks)) {
         if (!existingHooks[eventType]) {
           existingHooks[eventType] = eventHooks;
           log(`  Added ${eventType} hook`);
+        } else if (options.force) {
+          existingHooks[eventType] = eventHooks;
+          log(`  Updated ${eventType} hook (--force)`);
         } else {
           log(`  ${eventType} hook already configured, skipping`);
         }
