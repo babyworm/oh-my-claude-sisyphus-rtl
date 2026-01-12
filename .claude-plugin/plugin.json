@@ -19,8 +19,5 @@
     "todo-management",
     "productivity"
   ],
-  "commands": "../commands/",
-  "agents": "../agents/",
-  "skills": "../skills/",
-  "hooks": "../hooks/hooks.json"
+  "hooks": "./hooks/hooks.json"
 }
