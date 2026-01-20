@@ -437,7 +437,7 @@ A: Keywords are explicit shortcuts. Natural language triggers auto-detection. Bo
 ## Need Help?
 
 - **Diagnose issues**: Run `/doctor`
-- **See all commands**: Run `/help`
+- **See all commands**: Run `/oh-my-claudecode:help`
 - **View real-time status**: Run `/hud setup`
 - **Review detailed changelog**: See [CHANGELOG.md](../CHANGELOG.md)
 - **Report bugs**: [GitHub Issues](https://github.com/Yeachan-Heo/oh-my-claude-sisyphus/issues)

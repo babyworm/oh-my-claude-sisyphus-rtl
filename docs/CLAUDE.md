@@ -127,8 +127,8 @@ User says "stop", "cancel", "abort" → You determine what to stop:
 | `note` | Save to notepad for memory | "remember", "note" | `/note` |
 | `hud` | Configure HUD statusline | - | `/hud` |
 | `doctor` | Diagnose installation issues | - | `/doctor` |
-| `help` | Show OMC usage guide | - | `/help` |
-| `omc-setup` | One-time setup wizard | - | `/omc-setup` |
+| `help` | Show OMC usage guide | - | `/oh-my-claudecode:help` |
+| `omc-setup` | One-time setup wizard | - | `/oh-my-claudecode:omc-setup` |
 | `omc-default` | Configure local project | - | (internal) |
 | `omc-default-global` | Configure global settings | - | (internal) |
 | `ralph-init` | Initialize PRD for structured ralph | - | `/ralph-init` |
@@ -273,7 +273,7 @@ This keeps users informed without requiring them to request features.
 
 ### First Time Setup
 
-Say "setup omc" or run `/omc-setup` to configure. After that, everything is automatic.
+Say "setup omc" or run `/oh-my-claudecode:omc-setup` to configure. After that, everything is automatic.
 
 ### Troubleshooting
 

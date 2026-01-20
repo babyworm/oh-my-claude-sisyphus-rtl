@@ -1,7 +1,5 @@
 ---
-name: help
 description: Guide on using oh-my-claudecode plugin
-user-invocable: true
 ---
 
 # How OMC Works

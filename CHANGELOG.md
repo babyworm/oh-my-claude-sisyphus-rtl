@@ -130,7 +130,7 @@ Real-time visualization of the Sisyphus orchestration system via Claude Code's s
 ### Added
 
 - **Help Command** (`commands/help.md`)
-  - Comprehensive `/help` command to guide users on plugin usage
+  - Comprehensive `/oh-my-claudecode:help` command to guide users on plugin usage
   - Quick reference for all 19 commands and 19 agents
   - Example workflows for common tasks
   - Tips for effective usage and best practices

@@ -30,7 +30,7 @@
 
 **Step 2:** Run setup
 ```
-/omc-setup
+/oh-my-claudecode:omc-setup
 ```
 
 That's it. Everything else is automatic.

@@ -172,7 +172,7 @@ After migration, verify your setup:
    ```
 
 3. **Test a simple command**:
-   Run `/help` in Claude Code to ensure the plugin is loaded correctly.
+   Run `/oh-my-claudecode:help` in Claude Code to ensure the plugin is loaded correctly.
 
 ## Backward Compatibility
 
