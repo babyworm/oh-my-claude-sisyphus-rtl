@@ -63,4 +63,4 @@ But now you don't NEED them - everything is automatic.
 
 ---
 
-*Version: 3.0.10*
+*Version: 3.0.11*
