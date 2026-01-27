@@ -82,6 +82,45 @@ fi
 
 **Note:** The `npm install` command triggers the `prepare` script which runs `npm run build`, creating the dist/ directory with all compiled HUD files.
 
+## Step 3.6: Install CLI Analytics Tools (Optional)
+
+The OMC CLI provides standalone token analytics commands (`omc stats`, `omc agents`, `omc backfill`, `omc tui`).
+
+Ask user: "Would you like to install the OMC CLI for standalone analytics? (Recommended for tracking token usage and costs)"
+
+**Options:**
+1. **Yes (Recommended)** - Install CLI tools globally for `omc stats`, `omc agents`, etc.
+2. **No** - Skip CLI installation, use only plugin skills
+
+### If User Chooses YES:
+
+```bash
+# Check for bun (preferred) or npm
+if command -v bun &> /dev/null; then
+  echo "Installing OMC CLI via bun..."
+  bun install -g oh-my-claude-sisyphus
+elif command -v npm &> /dev/null; then
+  echo "Installing OMC CLI via npm..."
+  npm install -g oh-my-claude-sisyphus
+else
+  echo "ERROR: Neither bun nor npm found. Please install Node.js or Bun first."
+  exit 1
+fi
+
+# Verify installation
+if command -v omc &> /dev/null; then
+  echo "✓ OMC CLI installed successfully!"
+  echo "  Try: omc stats, omc agents, omc backfill"
+else
+  echo "⚠ CLI installed but 'omc' not in PATH."
+  echo "  You may need to restart your terminal or add npm/bun global bin to PATH."
+fi
+```
+
+### If User Chooses NO:
+
+Skip this step. User can install later with `npm install -g oh-my-claude-sisyphus`.
+
 ## Step 4: Verify Plugin Installation
 
 ```bash
@@ -144,6 +183,12 @@ Run /oh-my-claudecode:mcp-setup to add tools like web search, GitHub, etc.
 HUD STATUSLINE:
 The status bar now shows OMC state. Restart Claude Code to see it.
 
+CLI ANALYTICS (if installed):
+- omc           - Full dashboard (stats + agents + cost)
+- omc stats     - View token usage and costs
+- omc agents    - See agent breakdown by cost
+- omc tui       - Launch interactive TUI dashboard
+
 That's it! Just use Claude Code normally.
 ```
 
@@ -172,6 +217,12 @@ MAGIC KEYWORDS (power-user shortcuts):
 
 HUD STATUSLINE:
 The status bar now shows OMC state. Restart Claude Code to see it.
+
+CLI ANALYTICS (if installed):
+- omc           - Full dashboard (stats + agents + cost)
+- omc stats     - View token usage and costs
+- omc agents    - See agent breakdown by cost
+- omc tui       - Launch interactive TUI dashboard
 
 Your workflow won't break - it just got easier!
 ```

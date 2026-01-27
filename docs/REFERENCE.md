@@ -38,7 +38,7 @@ Uses Node.js hooks from the plugin directory. Integrates directly with Claude Co
 ### Option B: Via npm (Windows & Cross-Platform)
 
 ```bash
-npm install -g oh-my-claudecode
+npm install -g oh-my-claude-sisyphus
 ```
 
 > **Windows Users**: This is the recommended installation method. Requires Node.js 20+.

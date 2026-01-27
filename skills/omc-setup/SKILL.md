@@ -49,6 +49,14 @@ mkdir -p .claude && echo ".claude directory ready"
 # Extract old version before download
 OLD_VERSION=$(grep -m1 "^# oh-my-claudecode" .claude/CLAUDE.md 2>/dev/null | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' || echo "none")
 
+# Backup existing CLAUDE.md before overwriting (if it exists)
+if [ -f ".claude/CLAUDE.md" ]; then
+  BACKUP_DATE=$(date +%Y-%m-%d)
+  BACKUP_PATH=".claude/CLAUDE.md.backup.${BACKUP_DATE}"
+  cp .claude/CLAUDE.md "$BACKUP_PATH"
+  echo "Backed up existing CLAUDE.md to $BACKUP_PATH"
+fi
+
 # Download fresh CLAUDE.md from GitHub
 curl -fsSL "https://raw.githubusercontent.com/Yeachan-Heo/oh-my-claudecode/main/docs/CLAUDE.md" -o .claude/CLAUDE.md && \
 echo "Downloaded CLAUDE.md to .claude/CLAUDE.md"
@@ -65,6 +73,8 @@ fi
 ```
 
 **Note**: The downloaded CLAUDE.md includes Context Persistence instructions with `<remember>` tags for surviving conversation compaction.
+
+**Note**: If an existing CLAUDE.md is found, it will be backed up to `.claude/CLAUDE.md.backup.YYYY-MM-DD` before downloading the new version.
 
 **MANDATORY**: Always run this command. Do NOT skip. Do NOT use Write tool.
 
@@ -84,6 +94,7 @@ After completing local configuration, report:
 
 **OMC Project Configuration Complete**
 - CLAUDE.md: Updated with latest configuration from GitHub at ./.claude/CLAUDE.md
+- Backup: Previous CLAUDE.md backed up to `.claude/CLAUDE.md.backup.YYYY-MM-DD` (if existed)
 - Scope: **PROJECT** - applies only to this project
 - Hooks: Provided by plugin (no manual installation needed)
 - Agents: 28+ available (base + tiered variants)
@@ -103,6 +114,14 @@ If `--local` flag was used, **STOP HERE**. Do not continue to HUD setup or other
 # Extract old version before download
 OLD_VERSION=$(grep -m1 "^# oh-my-claudecode" ~/.claude/CLAUDE.md 2>/dev/null | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' || echo "none")
 
+# Backup existing CLAUDE.md before overwriting (if it exists)
+if [ -f "$HOME/.claude/CLAUDE.md" ]; then
+  BACKUP_DATE=$(date +%Y-%m-%d)
+  BACKUP_PATH="$HOME/.claude/CLAUDE.md.backup.${BACKUP_DATE}"
+  cp "$HOME/.claude/CLAUDE.md" "$BACKUP_PATH"
+  echo "Backed up existing CLAUDE.md to $BACKUP_PATH"
+fi
+
 # Download fresh CLAUDE.md to global config
 curl -fsSL "https://raw.githubusercontent.com/Yeachan-Heo/oh-my-claudecode/main/docs/CLAUDE.md" -o ~/.claude/CLAUDE.md && \
 echo "Downloaded CLAUDE.md to ~/.claude/CLAUDE.md"
@@ -117,6 +136,8 @@ else
   echo "Updated CLAUDE.md: $OLD_VERSION -> $NEW_VERSION"
 fi
 ```
+
+**Note**: If an existing CLAUDE.md is found, it will be backed up to `~/.claude/CLAUDE.md.backup.YYYY-MM-DD` before downloading the new version.
 
 ### Clean Up Legacy Hooks (if present)
 
@@ -147,6 +168,7 @@ After completing global configuration, report:
 
 **OMC Global Configuration Complete**
 - CLAUDE.md: Updated with latest configuration from GitHub at ~/.claude/CLAUDE.md
+- Backup: Previous CLAUDE.md backed up to `~/.claude/CLAUDE.md.backup.YYYY-MM-DD` (if existed)
 - Scope: **GLOBAL** - applies to all Claude Code sessions
 - Hooks: Provided by plugin (no manual installation needed)
 - Agents: 28+ available (base + tiered variants)
@@ -266,6 +288,45 @@ echo "Default execution mode set to: USER_CHOICE"
 
 **Note**: This preference ONLY affects generic keywords ("fast", "parallel"). Explicit keywords ("ulw", "eco") always override this preference.
 
+## Step 3.8: Install CLI Analytics Tools (Optional)
+
+The OMC CLI provides standalone token analytics commands (`omc stats`, `omc agents`, `omc tui`).
+
+Ask user: "Would you like to install the OMC CLI for standalone analytics? (Recommended for tracking token usage and costs)"
+
+**Options:**
+1. **Yes (Recommended)** - Install CLI tools globally for `omc stats`, `omc agents`, etc.
+2. **No** - Skip CLI installation, use only plugin skills
+
+### If User Chooses YES:
+
+```bash
+# Check for bun (preferred) or npm
+if command -v bun &> /dev/null; then
+  echo "Installing OMC CLI via bun..."
+  bun install -g oh-my-claude-sisyphus
+elif command -v npm &> /dev/null; then
+  echo "Installing OMC CLI via npm..."
+  npm install -g oh-my-claude-sisyphus
+else
+  echo "ERROR: Neither bun nor npm found. Please install Node.js or Bun first."
+  exit 1
+fi
+
+# Verify installation
+if command -v omc &> /dev/null; then
+  echo "✓ OMC CLI installed successfully!"
+  echo "  Try: omc stats, omc agents, omc tui"
+else
+  echo "⚠ CLI installed but 'omc' not in PATH."
+  echo "  You may need to restart your terminal or add npm/bun global bin to PATH."
+fi
+```
+
+### If User Chooses NO:
+
+Skip this step. User can install later with `npm install -g oh-my-claude-sisyphus`.
+
 ## Step 4: Verify Plugin Installation
 
 ```bash
@@ -329,6 +390,12 @@ Run /oh-my-claudecode:mcp-setup to add tools like web search, GitHub, etc.
 HUD STATUSLINE:
 The status bar now shows OMC state. Restart Claude Code to see it.
 
+CLI ANALYTICS (if installed):
+- omc           - Full dashboard (stats + agents + cost)
+- omc stats     - View token usage and costs
+- omc agents    - See agent breakdown by cost
+- omc tui       - Launch interactive TUI dashboard
+
 That's it! Just use Claude Code normally.
 ```
 
@@ -358,6 +425,12 @@ MAGIC KEYWORDS (power-user shortcuts):
 
 HUD STATUSLINE:
 The status bar now shows OMC state. Restart Claude Code to see it.
+
+CLI ANALYTICS (if installed):
+- omc           - Full dashboard (stats + agents + cost)
+- omc stats     - View token usage and costs
+- omc agents    - See agent breakdown by cost
+- omc tui       - Launch interactive TUI dashboard
 
 Your workflow won't break - it just got easier!
 ```
@@ -429,11 +502,13 @@ MODES:
 
   Local Configuration (--local)
     - Downloads fresh CLAUDE.md to ./.claude/
+    - Backs up existing CLAUDE.md to .claude/CLAUDE.md.backup.YYYY-MM-DD
     - Project-specific settings
     - Use this to update project config after OMC upgrades
 
   Global Configuration (--global)
     - Downloads fresh CLAUDE.md to ~/.claude/
+    - Backs up existing CLAUDE.md to ~/.claude/CLAUDE.md.backup.YYYY-MM-DD
     - Applies to all Claude Code sessions
     - Cleans up legacy hooks
     - Use this to update global config after OMC upgrades

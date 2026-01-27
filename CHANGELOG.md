@@ -5,7 +5,100 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [3.5.5] - 2026-01-25
+## [3.6.3] - 2026-01-27
+
+### Fixed
+
+- Fix npm package references (`oh-my-claudecode` → `oh-my-claude-sisyphus`) in docs/MIGRATION.md, commands/doctor.md, skills/doctor/SKILL.md
+
+## [3.6.2] - 2026-01-27
+
+### Added
+
+#### Project Session Manager (PSM) Skill
+New skill for managing isolated project sessions with automatic context injection.
+
+- **PSM Skill** (`skills/psm/`)
+  - `/oh-my-claudecode:psm` command for project session management
+  - Automatic CLAUDE.md and AGENTS.md injection on session start
+  - Project isolation with dedicated session contexts
+  - Session persistence and resume support
+  - Integration with existing oh-my-claudecode workflows
+
+### Changed
+
+- Updated skill count: 40 → 41 (added psm)
+
+## [3.6.0] - 2026-01-26
+
+### Added
+
+#### SQLite-based Swarm Coordination (Major Feature)
+Production-ready multi-agent task coordination with atomic claiming and transaction isolation.
+
+- **SQLite Database Backend** (`src/hooks/swarm/`)
+  - Atomic task claiming with IMMEDIATE transaction mode
+  - Lease-based ownership with 5-minute timeout
+  - Heartbeat monitoring for agent health
+  - Stale claim cleanup with automatic release
+  - WAL mode for concurrent read access
+
+- **Mode Registry** (`src/hooks/mode-registry/`)
+  - Centralized mode state detection via file-based approach
+  - Mutual exclusion between exclusive modes (autopilot, ultrapilot, swarm, pipeline)
+  - Stale marker detection with 1-hour auto-removal
+  - Marker file management for SQLite-based modes
+
+- **Worker Preamble Protocol** (`src/agents/preamble.ts`)
+  - Prevents worker agents from spawning their own sub-agents
+  - Ensures agents use tools directly (Read, Write, Edit, Bash)
+  - Requires agents to report results with absolute file paths
+  - Documented in AGENTS.md
+
+- **Ultrapilot Decomposer** (`src/hooks/ultrapilot/decomposer.ts`)
+  - AI-powered task decomposition for parallel execution
+  - File ownership assignment with non-overlapping patterns
+  - Dependency tracking and execution order calculation
+
+- **37 new tests** across 3 test files for swarm coordination
+
+### Changed
+
+#### State File Standardization
+All execution mode state files consolidated into `.omc/state/` subdirectory:
+- `autopilot-state.json`
+- `ralph-state.json`
+- `ultrawork-state.json`
+- `ultraqa-state.json`
+- `ultrapilot-state.json`
+- `swarm.db` (SQLite database)
+- `pipeline-state.json`
+- `ecomode-state.json`
+
+#### Skill Files Updated
+All skill files now include explicit "STATE CLEANUP ON COMPLETION" sections instructing to delete state files rather than just setting `active: false`.
+
+### Fixed
+
+- **Path consistency**: Fixed path mismatches between mode-registry and cancel skill
+- **Transaction isolation**: All 6 swarm transactions use `.immediate()` for proper write locking
+- **Init error handling**: `cleanupOnFailure()` prevents leftover state on initialization errors
+
+### Technical Details
+
+**New Files:**
+- `src/hooks/swarm/index.ts` - Main swarm coordination module
+- `src/hooks/swarm/state.ts` - SQLite state management
+- `src/hooks/swarm/claiming.ts` - Atomic task claiming
+- `src/hooks/swarm/types.ts` - TypeScript interfaces
+- `src/hooks/mode-registry/types.ts` - Mode registry types
+- `src/agents/preamble.ts` - Worker preamble protocol
+- `src/hooks/ultrapilot/decomposer.ts` - Task decomposition
+
+**Dependencies Added:**
+- `better-sqlite3` - SQLite3 binding for Node.js
+
+## [3.5.7] - 2026-01-25
 
 ### Added
 - feat(skills): add learn-about-omc skill for usage pattern analysis
@@ -553,9 +646,9 @@ This is a **breaking release** that renames the entire project and all agent nam
 
 ### Breaking Changes
 
-- **Package Renamed**: `oh-my-claude-sisyphus` → `oh-my-claudecode`
-  - Installation: `npx oh-my-claudecode install` (previously `npx oh-my-claude-sisyphus install`)
-  - All references updated in documentation and code
+- **Project Renamed**: Project renamed to `oh-my-claudecode`
+  - npm package remains `oh-my-claude-sisyphus`: `npx oh-my-claude-sisyphus install`
+  - Plugin name is `oh-my-claudecode` for Claude Code integration
 
 - **Agent Names Changed**: Greek mythology → Intuitive names
   - `prometheus` → `planner` (strategic planning)
@@ -587,7 +680,7 @@ This is a **breaking release** that renames the entire project and all agent nam
 
 For existing users upgrading from 2.x:
 
-1. **Reinstall**: Run `npx oh-my-claudecode install` to update hooks and configs
+1. **Reinstall**: Run `npx oh-my-claude-sisyphus install` to update hooks and configs
 2. **State Migration**: Old `.sisyphus/` directories will continue to work, but new state saves to `.omc/`
 3. **Agent References**: Update any custom scripts/configs that referenced old agent names
 4. **Environment Variables**: Rename any `SISYPHUS_*` variables to `OMC_*`
