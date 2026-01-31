@@ -1,8 +1,8 @@
 ---
 name: researcher-low
 description: Quick documentation lookups (Haiku)
-tools: Read, Glob, Grep, WebSearch, WebFetch
 model: haiku
+disallowedTools: Write, Edit
 ---
 
 <Inherits_From>

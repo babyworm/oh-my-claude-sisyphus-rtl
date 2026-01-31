@@ -13,8 +13,9 @@
  * ```
  */
 
-import { detectKeywordsWithType, removeCodeBlocks } from './keyword-detector/index.js';
+import { detectKeywordsWithType, removeCodeBlocks, getPrimaryKeyword, getAllKeywords } from './keyword-detector/index.js';
 import { readRalphState, incrementRalphIteration, clearRalphState, detectCompletionPromise, createRalphLoopHook } from './ralph/index.js';
+import { processOrchestratorPreTool } from './omc-orchestrator/index.js';
 import { addBackgroundTask, completeBackgroundTask } from '../hud/background-tasks.js';
 import {
   readVerificationState,
@@ -22,7 +23,7 @@ import {
   getArchitectVerificationPrompt,
   clearVerificationState
 } from './ralph/index.js';
-import { checkIncompleteTodos, StopContext } from './todo-continuation/index.js';
+import { checkIncompleteTodos, StopContext, isContextLimitStop, isUserAbort } from './todo-continuation/index.js';
 import { checkPersistentModes, createHookOutput } from './persistent-mode/index.js';
 import { activateUltrawork, readUltraworkState } from './ultrawork/index.js';
 import {
@@ -40,6 +41,30 @@ import {
   TODO_CONTINUATION_PROMPT,
   RALPH_MESSAGE
 } from '../installer/hooks.js';
+
+// New async hook imports
+import {
+  processSubagentStart,
+  processSubagentStop,
+  type SubagentStartInput,
+  type SubagentStopInput
+} from './subagent-tracker/index.js';
+import {
+  processPreCompact,
+  type PreCompactInput
+} from './pre-compact/index.js';
+import {
+  processSetup,
+  type SetupInput
+} from './setup/index.js';
+import {
+  handlePermissionRequest,
+  type PermissionRequestInput
+} from './permission-handler/index.js';
+import {
+  handleSessionEnd,
+  type SessionEndInput
+} from './session-end/index.js';
 
 /**
  * Input format from Claude Code hooks (via stdin)
@@ -91,9 +116,16 @@ export type HookType =
   | 'ralph'
   | 'persistent-mode'
   | 'session-start'
+  | 'session-end'          // NEW: Cleanup and metrics on session end
   | 'pre-tool-use'
   | 'post-tool-use'
-  | 'autopilot';
+  | 'autopilot'
+  | 'subagent-start'       // NEW: Track agent spawns
+  | 'subagent-stop'        // NEW: Verify agent completion
+  | 'pre-compact'          // NEW: Save state before compaction
+  | 'setup-init'           // NEW: One-time initialization
+  | 'setup-maintenance'    // NEW: Periodic maintenance
+  | 'permission-request';  // NEW: Smart auto-approval
 
 /**
  * Extract prompt text from various input formats
@@ -116,8 +148,8 @@ function getPromptText(input: HookInput): string {
 
 /**
  * Process keyword detection hook
- * Detects ultrawork/ultrathink/search/analyze keywords and returns injection message
- * Also activates persistent ultrawork state when ultrawork keyword is detected
+ * Detects magic keywords and returns injection message
+ * Also activates persistent state for modes that require it (ralph, ultrawork)
  */
 function processKeywordDetector(input: HookInput): HookOutput {
   const promptText = getPromptText(input);
@@ -128,95 +160,84 @@ function processKeywordDetector(input: HookInput): HookOutput {
   // Remove code blocks to prevent false positives
   const cleanedText = removeCodeBlocks(promptText);
 
-  // Detect keywords
-  const keywords = detectKeywordsWithType(cleanedText);
+  // Get all keywords (supports multiple keywords in one prompt)
+  const keywords = getAllKeywords(cleanedText);
 
   if (keywords.length === 0) {
     return { continue: true };
   }
 
-  // Priority: ralph > ultrawork > ultrathink > search > analyze
-  const hasRalph = keywords.some(k => k.type === 'ralph');
-  const hasUltrawork = keywords.some(k => k.type === 'ultrawork');
-  const hasUltrathink = keywords.some(k => k.type === 'ultrathink');
-  const hasSearch = keywords.some(k => k.type === 'search');
-  const hasAnalyze = keywords.some(k => k.type === 'analyze');
+  const sessionId = input.sessionId;
+  const directory = input.directory || process.cwd();
+  const messages: string[] = [];
 
-  if (hasRalph) {
-    // Activate ralph state which also auto-activates ultrawork
-    const sessionId = input.sessionId;
-    const directory = input.directory || process.cwd();
-    const hook = createRalphLoopHook(directory);
-    hook.startLoop(sessionId || 'cli-session', promptText);
+  // Process each keyword and collect messages
+  for (const keywordType of keywords) {
+    switch (keywordType) {
+      case 'ralph':
+        // Activate ralph state which also auto-activates ultrawork
+        const hook = createRalphLoopHook(directory);
+        hook.startLoop(sessionId || 'cli-session', promptText);
+        messages.push(RALPH_MESSAGE);
+        break;
 
-    return {
-      continue: true,
-      message: RALPH_MESSAGE
-    };
+      case 'ultrawork':
+        // Activate persistent ultrawork state
+        activateUltrawork(promptText, sessionId, directory);
+        messages.push(ULTRAWORK_MESSAGE);
+        break;
+
+      case 'ultrathink':
+        messages.push(ULTRATHINK_MESSAGE);
+        break;
+
+      case 'deepsearch':
+        messages.push(SEARCH_MESSAGE);
+        break;
+
+      case 'analyze':
+        messages.push(ANALYZE_MESSAGE);
+        break;
+
+      // For modes without dedicated message constants, return generic activation message
+      // These are handled by UserPromptSubmit hook for skill invocation
+      case 'cancel':
+      case 'autopilot':
+      case 'ultrapilot':
+      case 'ecomode':
+      case 'swarm':
+      case 'pipeline':
+      case 'ralplan':
+      case 'plan':
+      case 'tdd':
+      case 'research':
+        messages.push(`[MODE: ${keywordType.toUpperCase()}] Skill invocation handled by UserPromptSubmit hook.`);
+        break;
+
+      default:
+        // Skip unknown keywords
+        break;
+    }
   }
 
-  if (hasUltrawork) {
-    // Activate persistent ultrawork state
-    const sessionId = input.sessionId;
-    const directory = input.directory || process.cwd();
-    activateUltrawork(promptText, sessionId, directory);
-
-    return {
-      continue: true,
-      message: ULTRAWORK_MESSAGE
-    };
+  // Return combined message with delimiter
+  if (messages.length === 0) {
+    return { continue: true };
   }
 
-  if (hasUltrathink) {
-    return {
-      continue: true,
-      message: ULTRATHINK_MESSAGE
-    };
-  }
-
-  if (hasSearch) {
-    return {
-      continue: true,
-      message: SEARCH_MESSAGE
-    };
-  }
-
-  if (hasAnalyze) {
-    return {
-      continue: true,
-      message: ANALYZE_MESSAGE
-    };
-  }
-
-  return { continue: true };
+  return {
+    continue: true,
+    message: messages.join('\n\n---\n\n')
+  };
 }
 
 /**
  * Process stop continuation hook
- * Checks for incomplete todos and blocks stop if tasks remain
+ * NOTE: Simplified to always return continue: true (soft enforcement only).
+ * All continuation enforcement is now done via message injection, not blocking.
  */
-async function processStopContinuation(input: HookInput): Promise<HookOutput> {
-  const sessionId = input.sessionId;
-  const directory = input.directory || process.cwd();
-
-  // Extract stop context for abort detection (supports both camelCase and snake_case)
-  const stopContext: StopContext = {
-    stop_reason: (input as Record<string, unknown>).stop_reason as string | undefined,
-    stopReason: (input as Record<string, unknown>).stopReason as string | undefined,
-    user_requested: (input as Record<string, unknown>).user_requested as boolean | undefined,
-    userRequested: (input as Record<string, unknown>).userRequested as boolean | undefined,
-  };
-
-  // Check for incomplete todos (respects user abort)
-  const incompleteTodos = await checkIncompleteTodos(sessionId, directory, stopContext);
-
-  if (incompleteTodos.count > 0) {
-    return {
-      continue: false,
-      reason: `${TODO_CONTINUATION_PROMPT}\n\n[Status: ${incompleteTodos.count} tasks remaining]`
-    };
-  }
-
+async function processStopContinuation(_input: HookInput): Promise<HookOutput> {
+  // Always allow stop - no hard blocking
   return { continue: true };
 }
 
@@ -415,10 +436,45 @@ Please continue working on these tasks.
 
 /**
  * Process pre-tool-use hook
- * Tracks background tasks when Task tool is invoked
+ * Checks delegation enforcement and tracks background tasks
  */
 function processPreToolUse(input: HookInput): HookOutput {
   const directory = input.directory || process.cwd();
+
+  // Check delegation enforcement FIRST
+  const enforcementResult = processOrchestratorPreTool({
+    toolName: input.toolName || '',
+    toolInput: (input.toolInput as Record<string, unknown>) || {},
+    sessionId: input.sessionId,
+    directory,
+  });
+
+  // If enforcement blocks, return immediately
+  if (!enforcementResult.continue) {
+    return {
+      continue: false,
+      reason: enforcementResult.reason,
+      message: enforcementResult.message,
+    };
+  }
+
+  // Warn about pkill -f self-termination risk (issue #210)
+  // Matches: pkill -f, pkill -9 -f, pkill --full, etc.
+  if (input.toolName === 'Bash') {
+    const command = (input.toolInput as { command?: string })?.command ?? '';
+    if (/\bpkill\b.*\s-f\b/.test(command) || /\bpkill\b.*--full\b/.test(command)) {
+      return {
+        continue: true,
+        message: [
+          'WARNING: `pkill -f` matches its own process command line and will self-terminate the shell (exit code 144 = SIGTERM).',
+          'Safer alternatives:',
+          '  - `pkill <exact-process-name>` (without -f)',
+          '  - `kill $(pgrep -f "pattern")` (pgrep does not kill itself)',
+          'Proceeding anyway, but the command may kill this shell session.',
+        ].join('\n'),
+      };
+    }
+  }
 
   // Track Task tool invocations for HUD background tasks display
   if (input.toolName === 'Task') {
@@ -428,9 +484,7 @@ function processPreToolUse(input: HookInput): HookOutput {
       run_in_background?: boolean;
     } | undefined;
 
-    // Only track if running in background or likely to take a while
     if (toolInput?.description) {
-      // Generate a pseudo-ID from the description hash (tool_use_id not available in pre-hook)
       const taskId = `task-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
       addBackgroundTask(
         taskId,
@@ -441,7 +495,10 @@ function processPreToolUse(input: HookInput): HookOutput {
     }
   }
 
-  return { continue: true };
+  // Return enforcement message if present (warning), otherwise continue silently
+  return enforcementResult.message
+    ? { continue: true, message: enforcementResult.message }
+    : { continue: true };
 }
 
 /**
@@ -530,6 +587,36 @@ export async function processHook(
 
       case 'autopilot':
         return processAutopilot(input);
+
+      // New async hook types
+      case 'session-end':
+        return await handleSessionEnd(input as unknown as SessionEndInput);
+
+      case 'subagent-start':
+        return processSubagentStart(input as unknown as SubagentStartInput);
+
+      case 'subagent-stop':
+        return processSubagentStop(input as unknown as SubagentStopInput);
+
+      case 'pre-compact':
+        return await processPreCompact(input as unknown as PreCompactInput);
+
+      case 'setup-init':
+        return await processSetup({
+          ...input,
+          trigger: 'init',
+          hook_event_name: 'Setup'
+        } as unknown as SetupInput);
+
+      case 'setup-maintenance':
+        return await processSetup({
+          ...input,
+          trigger: 'maintenance',
+          hook_event_name: 'Setup'
+        } as unknown as SetupInput);
+
+      case 'permission-request':
+        return await handlePermissionRequest(input as unknown as PermissionRequestInput);
 
       default:
         return { continue: true };

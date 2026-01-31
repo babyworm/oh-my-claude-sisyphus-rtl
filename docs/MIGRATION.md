@@ -30,7 +30,7 @@ Maintenance release fixing test suite issues and continuing skill consolidation 
 **Skill Consolidation:**
 - Continued cleanup from v3.5.3
 - Removed deprecated `cancel-*` skills (use `/cancel` instead)
-- Final skill count: 35 core skills
+- Final skill count: 37 core skills
 
 ### Migration Steps
 
@@ -103,7 +103,7 @@ The following skills have been **completely removed** in v3.5.3:
 ### Skill Count
 
 - v3.5: 42 skills
-- v3.5.3: 35 skills (8 removed, 1 added)
+- v3.5.3: 37 skills (8 removed, 3 added)
 
 ---
 
@@ -254,11 +254,11 @@ Include these anywhere in your message to explicitly activate behaviors. Use key
 | `ulw` / `ultrawork` | Maximum parallel execution | "ulw: fix all type errors" |
 | `plan` | Planning interview | "plan: new API design" |
 
-**Combine them for superpowers:**
+**ralph includes ultrawork:**
 ```
-ralph ulw: migrate the entire database
+ralph: migrate the entire database
     ↓
-Persistence (won't stop) + Ultrawork (maximum parallelism)
+Persistence (won't stop) + Ultrawork (maximum parallelism) built-in
 ```
 
 **No keywords?** Claude still auto-detects:
@@ -293,17 +293,21 @@ No more `/oh-my-claudecode:cancel-ralph` - just say "cancel"!
 
 Follow these steps to migrate your existing setup:
 
-#### 1. Uninstall Old Package
+#### 1. Uninstall Old Package (if installed via npm)
 
 ```bash
 npm uninstall -g oh-my-claude-sisyphus
 ```
 
-#### 2. Install New Package
+#### 2. Install via Plugin System (Required)
 
 ```bash
-npm install -g oh-my-claude-sisyphus
+# In Claude Code:
+/plugin marketplace add https://github.com/Yeachan-Heo/oh-my-claudecode
+/plugin install oh-my-claudecode
 ```
+
+> **Note**: npm/bun global installs are no longer supported. Use the plugin system.
 
 #### 3. Rename Local Project Directories
 

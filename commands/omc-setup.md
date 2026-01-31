@@ -6,6 +6,73 @@ description: One-time setup for oh-my-claudecode (the ONLY command you need to l
 
 This is the **only command you need to learn**. After running this, everything else is automatic.
 
+## Graceful Interrupt Handling
+
+**IMPORTANT**: This setup process saves progress after each step. If interrupted (Ctrl+C or connection loss), the setup can resume from where it left off.
+
+### Resume Detection (Step 0)
+
+Before starting any step, check for existing state:
+
+```bash
+# Check for existing setup state
+STATE_FILE=".omc/state/setup-state.json"
+
+# Cross-platform ISO date to epoch conversion
+iso_to_epoch() {
+  local iso_date="$1"
+  local epoch=""
+  # Try GNU date first (Linux)
+  epoch=$(date -d "$iso_date" +%s 2>/dev/null)
+  if [ $? -eq 0 ] && [ -n "$epoch" ]; then
+    echo "$epoch"
+    return 0
+  fi
+  # Try BSD/macOS date
+  local clean_date=$(echo "$iso_date" | sed 's/[+-][0-9][0-9]:[0-9][0-9]$//' | sed 's/Z$//' | sed 's/T/ /')
+  epoch=$(date -j -f "%Y-%m-%d %H:%M:%S" "$clean_date" +%s 2>/dev/null)
+  if [ $? -eq 0 ] && [ -n "$epoch" ]; then
+    echo "$epoch"
+    return 0
+  fi
+  echo "0"
+}
+
+if [ -f "$STATE_FILE" ]; then
+  # Check if state is stale (older than 24 hours)
+  TIMESTAMP_RAW=$(jq -r '.timestamp // empty' "$STATE_FILE" 2>/dev/null)
+  if [ -n "$TIMESTAMP_RAW" ]; then
+    TIMESTAMP_EPOCH=$(iso_to_epoch "$TIMESTAMP_RAW")
+    NOW_EPOCH=$(date +%s)
+    STATE_AGE=$((NOW_EPOCH - TIMESTAMP_EPOCH))
+  else
+    STATE_AGE=999999  # Force fresh start if no timestamp
+  fi
+  if [ "$STATE_AGE" -gt 86400 ]; then
+    echo "Previous setup state is more than 24 hours old. Starting fresh."
+    rm -f "$STATE_FILE"
+  else
+    LAST_STEP=$(jq -r ".lastCompletedStep // 0" "$STATE_FILE" 2>/dev/null || echo "0")
+    TIMESTAMP=$(jq -r .timestamp "$STATE_FILE" 2>/dev/null || echo "unknown")
+    echo "Found previous setup session (Step $LAST_STEP completed at $TIMESTAMP)"
+  fi
+fi
+```
+
+If state exists, use AskUserQuestion to prompt:
+
+**Question:** "Found a previous setup session. Would you like to resume or start fresh?"
+
+**Options:**
+1. **Resume from step $LAST_STEP** - Continue where you left off
+2. **Start fresh** - Begin from the beginning (clears saved state)
+
+If user chooses "Start fresh":
+```bash
+rm -f ".omc/state/setup-state.json"
+echo "Previous state cleared. Starting fresh setup."
+```
+
 ## Step 1: Ask User Preference
 
 Use the AskUserQuestion tool to prompt the user:
@@ -63,7 +130,16 @@ if [ -d "$PLUGIN_DIR" ]; then
     # Check if dist/hud/index.js exists
     if [ ! -f "$PLUGIN_DIR/$PLUGIN_VERSION/dist/hud/index.js" ]; then
       echo "Plugin not built - building now..."
-      cd "$PLUGIN_DIR/$PLUGIN_VERSION" && npm install
+      cd "$PLUGIN_DIR/$PLUGIN_VERSION"
+      # Use bun (preferred) or npm for building
+      if command -v bun &> /dev/null; then
+        bun install
+      elif command -v npm &> /dev/null; then
+        npm install
+      else
+        echo "ERROR: Neither bun nor npm found. Please install Node.js or Bun first."
+        exit 1
+      fi
       if [ -f "dist/hud/index.js" ]; then
         echo "Build successful - HUD is ready"
       else
@@ -98,6 +174,11 @@ Ask user: "Would you like to install the OMC CLI for standalone analytics? (Reco
 # Check for bun (preferred) or npm
 if command -v bun &> /dev/null; then
   echo "Installing OMC CLI via bun..."
+  # Clean up npm version if it exists to avoid duplicates
+  if command -v npm &> /dev/null && npm list -g oh-my-claude-sisyphus &>/dev/null; then
+    echo "Removing existing npm installation to avoid duplicates..."
+    npm uninstall -g oh-my-claude-sisyphus 2>/dev/null
+  fi
   bun install -g oh-my-claude-sisyphus
 elif command -v npm &> /dev/null; then
   echo "Installing OMC CLI via npm..."
@@ -119,13 +200,69 @@ fi
 
 ### If User Chooses NO:
 
-Skip this step. User can install later with `npm install -g oh-my-claude-sisyphus`.
+Skip this step. User can install later with `bun install -g oh-my-claude-sisyphus` or `npm install -g oh-my-claude-sisyphus`.
 
 ## Step 4: Verify Plugin Installation
 
 ```bash
 grep -q "oh-my-claudecode" ~/.claude/settings.json && echo "Plugin verified" || echo "Plugin NOT found - run: claude /install-plugin oh-my-claudecode"
 ```
+
+## Step 4.5: Install AST Tools (Optional)
+
+The plugin includes AST-aware code search and transformation tools (`ast_grep_search`, `ast_grep_replace`) that require `@ast-grep/napi`.
+
+Ask user: "Would you like to install AST tools for advanced code search? (Pattern-based AST matching across 17 languages)"
+
+**Options:**
+1. **Yes (Recommended)** - Install `@ast-grep/napi` for AST-powered search/replace
+2. **No** - Skip, AST tools will show helpful error when used
+
+### If User Chooses YES:
+
+```bash
+# Check for bun (preferred) or npm
+if command -v bun &> /dev/null; then
+  PKG_MANAGER="bun"
+  echo "Installing @ast-grep/napi via bun..."
+  # Clean up npm version if it exists to avoid duplicates
+  if command -v npm &> /dev/null && npm list -g @ast-grep/napi &>/dev/null; then
+    echo "Removing existing npm installation to avoid duplicates..."
+    npm uninstall -g @ast-grep/napi 2>/dev/null
+  fi
+  bun install -g @ast-grep/napi
+elif command -v npm &> /dev/null; then
+  PKG_MANAGER="npm"
+  echo "Installing @ast-grep/napi via npm..."
+  npm install -g @ast-grep/napi
+else
+  echo "ERROR: Neither bun nor npm found. Please install Node.js or Bun first."
+  exit 1
+fi
+
+# Verify installation
+if [ "$PKG_MANAGER" = "bun" ]; then
+  if bun pm ls -g 2>/dev/null | grep -q "@ast-grep/napi"; then
+    echo "✓ AST tools installed successfully via bun!"
+    echo "  Available tools: ast_grep_search, ast_grep_replace"
+    echo "  Supports: JavaScript, TypeScript, Python, Go, Rust, Java, and 11 more languages"
+  else
+    echo "⚠ Installation may have failed. You can install later with: bun install -g @ast-grep/napi"
+  fi
+else
+  if npm list -g @ast-grep/napi &>/dev/null; then
+    echo "✓ AST tools installed successfully via npm!"
+    echo "  Available tools: ast_grep_search, ast_grep_replace"
+    echo "  Supports: JavaScript, TypeScript, Python, Go, Rust, Java, and 11 more languages"
+  else
+    echo "⚠ Installation may have failed. You can install later with: npm install -g @ast-grep/napi"
+  fi
+fi
+```
+
+### If User Chooses NO:
+
+Skip this step. AST tools will gracefully degrade with a helpful installation message when used.
 
 ## Step 5: Offer MCP Server Configuration
 
@@ -175,7 +312,7 @@ Just include these words naturally in your request:
 | ulw | Max parallelism | "ulw refactor the API" |
 | plan | Planning interview | "plan the new endpoints" |
 
-Combine them: "ralph ulw: migrate the database"
+**ralph includes ultrawork:** When you activate ralph mode, it automatically includes ultrawork's parallel execution. No need to combine keywords.
 
 MCP SERVERS:
 Run /oh-my-claudecode:mcp-setup to add tools like web search, GitHub, etc.
@@ -188,6 +325,11 @@ CLI ANALYTICS (if installed):
 - omc stats     - View token usage and costs
 - omc agents    - See agent breakdown by cost
 - omc tui       - Launch interactive TUI dashboard
+
+AST TOOLS (if installed):
+- ast_grep_search  - Pattern-based AST code search
+- ast_grep_replace - AST-aware code transformations
+- Supports 17 languages including TS, Python, Go, Rust
 
 That's it! Just use Claude Code normally.
 ```
@@ -225,6 +367,44 @@ CLI ANALYTICS (if installed):
 - omc tui       - Launch interactive TUI dashboard
 
 Your workflow won't break - it just got easier!
+```
+
+## Step 8: Ask About Starring Repository
+
+First, check if `gh` CLI is available and authenticated:
+
+```bash
+gh auth status &>/dev/null
+```
+
+### If gh is available and authenticated:
+
+Use the AskUserQuestion tool to prompt the user:
+
+**Question:** "If you're enjoying oh-my-claudecode, would you like to support the project by starring it on GitHub?"
+
+**Options:**
+1. **Yes, star it!** - Star the repository
+2. **No thanks** - Skip without further prompts
+3. **Maybe later** - Skip without further prompts
+
+If user chooses "Yes, star it!":
+
+```bash
+gh api -X PUT /user/starred/Yeachan-Heo/oh-my-claudecode 2>/dev/null && echo "Thanks for starring! ⭐" || echo "Could not star - you can star manually at https://github.com/Yeachan-Heo/oh-my-claudecode"
+```
+
+**Note:** Fail gracefully if the API call doesn't work - never block setup completion.
+
+### If gh is NOT available or not authenticated:
+
+Skip the AskUserQuestion and just display:
+
+```bash
+echo ""
+echo "If you enjoy oh-my-claudecode, consider starring the repo:"
+echo "  https://github.com/Yeachan-Heo/oh-my-claudecode"
+echo ""
 ```
 
 ## Fallback

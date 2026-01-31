@@ -54,7 +54,7 @@ export function createContinuationHook(): HookDefinition {
 
       if (hasIncompleteTasks) {
         return {
-          continue: false,
+          continue: true,
           message: getRandomReminder()
         };
       }

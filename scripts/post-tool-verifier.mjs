@@ -262,10 +262,14 @@ async function main() {
     // Generate contextual message
     const message = generateMessage(toolName, toolOutput, sessionId, toolCount);
 
-    // Build response
+    // Build response - use hookSpecificOutput.additionalContext for PostToolUse
     const response = { continue: true };
-    if (message) {
-      response.message = message;
+    const contextMessage = message;
+    if (contextMessage) {
+      response.hookSpecificOutput = {
+        hookEventName: 'PostToolUse',
+        additionalContext: contextMessage
+      };
     }
 
     console.log(JSON.stringify(response, null, 2));

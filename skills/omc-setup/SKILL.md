@@ -7,6 +7,104 @@ description: Setup and configure oh-my-claudecode (the ONLY command you need to 
 
 This is the **only command you need to learn**. After running this, everything else is automatic.
 
+## Graceful Interrupt Handling
+
+**IMPORTANT**: This setup process saves progress after each step. If interrupted (Ctrl+C or connection loss), the setup can resume from where it left off.
+
+### State File Location
+- `.omc/state/setup-state.json` - Tracks completed steps
+
+### Resume Detection (Step 0)
+
+Before starting any step, check for existing state:
+
+```bash
+# Check for existing setup state
+STATE_FILE=".omc/state/setup-state.json"
+
+# Cross-platform ISO date to epoch conversion
+iso_to_epoch() {
+  local iso_date="$1"
+  local epoch=""
+  # Try GNU date first (Linux)
+  epoch=$(date -d "$iso_date" +%s 2>/dev/null)
+  if [ $? -eq 0 ] && [ -n "$epoch" ]; then
+    echo "$epoch"
+    return 0
+  fi
+  # Try BSD/macOS date
+  local clean_date=$(echo "$iso_date" | sed 's/[+-][0-9][0-9]:[0-9][0-9]$//' | sed 's/Z$//' | sed 's/T/ /')
+  epoch=$(date -j -f "%Y-%m-%d %H:%M:%S" "$clean_date" +%s 2>/dev/null)
+  if [ $? -eq 0 ] && [ -n "$epoch" ]; then
+    echo "$epoch"
+    return 0
+  fi
+  echo "0"
+}
+
+if [ -f "$STATE_FILE" ]; then
+  # Check if state is stale (older than 24 hours)
+  TIMESTAMP_RAW=$(jq -r '.timestamp // empty' "$STATE_FILE" 2>/dev/null)
+  if [ -n "$TIMESTAMP_RAW" ]; then
+    TIMESTAMP_EPOCH=$(iso_to_epoch "$TIMESTAMP_RAW")
+    NOW_EPOCH=$(date +%s)
+    STATE_AGE=$((NOW_EPOCH - TIMESTAMP_EPOCH))
+  else
+    STATE_AGE=999999  # Force fresh start if no timestamp
+  fi
+  if [ "$STATE_AGE" -gt 86400 ]; then
+    echo "Previous setup state is more than 24 hours old. Starting fresh."
+    rm -f "$STATE_FILE"
+  else
+    LAST_STEP=$(jq -r ".lastCompletedStep // 0" "$STATE_FILE" 2>/dev/null || echo "0")
+    TIMESTAMP=$(jq -r .timestamp "$STATE_FILE" 2>/dev/null || echo "unknown")
+    echo "Found previous setup session (Step $LAST_STEP completed at $TIMESTAMP)"
+  fi
+fi
+```
+
+If state exists, use AskUserQuestion to prompt:
+
+**Question:** "Found a previous setup session. Would you like to resume or start fresh?"
+
+**Options:**
+1. **Resume from step $LAST_STEP** - Continue where you left off
+2. **Start fresh** - Begin from the beginning (clears saved state)
+
+If user chooses "Start fresh":
+```bash
+rm -f ".omc/state/setup-state.json"
+echo "Previous state cleared. Starting fresh setup."
+```
+
+### Save Progress Helper
+
+After completing each major step, save progress:
+
+```bash
+# Save setup progress (call after each step)
+# Usage: save_setup_progress STEP_NUMBER
+save_setup_progress() {
+  mkdir -p .omc/state
+  cat > ".omc/state/setup-state.json" << EOF
+{
+  "lastCompletedStep": $1,
+  "timestamp": "$(date -Iseconds)",
+  "configType": "${CONFIG_TYPE:-unknown}"
+}
+EOF
+}
+```
+
+### Clear State on Completion
+
+After successful setup completion (Step 7/8), remove the state file:
+
+```bash
+rm -f ".omc/state/setup-state.json"
+echo "Setup completed successfully. State cleared."
+```
+
 ## Usage Modes
 
 This skill handles three scenarios:
@@ -23,6 +121,8 @@ Check for flags in the user's invocation:
 - If no flags → Run Initial Setup wizard (Step 1)
 
 ## Step 1: Initial Setup Wizard (Default Behavior)
+
+**Note**: If resuming and lastCompletedStep >= 1, skip to the appropriate step based on configType.
 
 Use the AskUserQuestion tool to prompt the user:
 
@@ -90,7 +190,19 @@ grep -q "oh-my-claudecode" ~/.claude/settings.json && echo "Plugin verified" || 
 
 ### Confirm Local Configuration Success
 
-After completing local configuration, report:
+After completing local configuration, save progress and report:
+
+```bash
+# Save progress - Step 2 complete (Local config)
+mkdir -p .omc/state
+cat > ".omc/state/setup-state.json" << EOF
+{
+  "lastCompletedStep": 2,
+  "timestamp": "$(date -Iseconds)",
+  "configType": "local"
+}
+EOF
+```
 
 **OMC Project Configuration Complete**
 - CLAUDE.md: Updated with latest configuration from GitHub at ./.claude/CLAUDE.md
@@ -102,7 +214,11 @@ After completing local configuration, report:
 
 **Note**: This configuration is project-specific and won't affect other projects or global settings.
 
-If `--local` flag was used, **STOP HERE**. Do not continue to HUD setup or other steps.
+If `--local` flag was used, clear state and **STOP HERE**:
+```bash
+rm -f ".omc/state/setup-state.json"
+```
+Do not continue to HUD setup or other steps.
 
 ## Step 2B: Global Configuration (--global flag or user chose GLOBAL)
 
@@ -164,7 +280,19 @@ grep -q "oh-my-claudecode" ~/.claude/settings.json && echo "Plugin verified" || 
 
 ### Confirm Global Configuration Success
 
-After completing global configuration, report:
+After completing global configuration, save progress and report:
+
+```bash
+# Save progress - Step 2 complete (Global config)
+mkdir -p .omc/state
+cat > ".omc/state/setup-state.json" << EOF
+{
+  "lastCompletedStep": 2,
+  "timestamp": "$(date -Iseconds)",
+  "configType": "global"
+}
+EOF
+```
 
 **OMC Global Configuration Complete**
 - CLAUDE.md: Updated with latest configuration from GitHub at ~/.claude/CLAUDE.md
@@ -176,9 +304,15 @@ After completing global configuration, report:
 
 **Note**: Hooks are now managed by the plugin system automatically. No manual hook installation required.
 
-If `--global` flag was used, **STOP HERE**. Do not continue to HUD setup or other steps.
+If `--global` flag was used, clear state and **STOP HERE**:
+```bash
+rm -f ".omc/state/setup-state.json"
+```
+Do not continue to HUD setup or other steps.
 
 ## Step 3: Setup HUD Statusline
+
+**Note**: If resuming and lastCompletedStep >= 3, skip to Step 3.5.
 
 The HUD shows real-time status in Claude Code's status bar. **Invoke the hud skill** to set up and configure:
 
@@ -188,6 +322,20 @@ This will:
 1. Install the HUD wrapper script to `~/.claude/hud/omc-hud.mjs`
 2. Configure `statusLine` in `~/.claude/settings.json`
 3. Report status and prompt to restart if needed
+
+After HUD setup completes, save progress:
+```bash
+# Save progress - Step 3 complete (HUD setup)
+mkdir -p .omc/state
+CONFIG_TYPE=$(cat ".omc/state/setup-state.json" 2>/dev/null | grep -oE '"configType":\s*"[^"]+"' | cut -d'"' -f4 || echo "unknown")
+cat > ".omc/state/setup-state.json" << EOF
+{
+  "lastCompletedStep": 3,
+  "timestamp": "$(date -Iseconds)",
+  "configType": "$CONFIG_TYPE"
+}
+EOF
+```
 
 ## Step 3.5: Clear Stale Plugin Cache
 
@@ -298,34 +446,15 @@ Ask user: "Would you like to install the OMC CLI for standalone analytics? (Reco
 1. **Yes (Recommended)** - Install CLI tools globally for `omc stats`, `omc agents`, etc.
 2. **No** - Skip CLI installation, use only plugin skills
 
-### If User Chooses YES:
+### CLI Installation Note
 
-```bash
-# Check for bun (preferred) or npm
-if command -v bun &> /dev/null; then
-  echo "Installing OMC CLI via bun..."
-  bun install -g oh-my-claude-sisyphus
-elif command -v npm &> /dev/null; then
-  echo "Installing OMC CLI via npm..."
-  npm install -g oh-my-claude-sisyphus
-else
-  echo "ERROR: Neither bun nor npm found. Please install Node.js or Bun first."
-  exit 1
-fi
+The CLI (`omc` command) is **no longer supported** via npm/bun global install.
 
-# Verify installation
-if command -v omc &> /dev/null; then
-  echo "✓ OMC CLI installed successfully!"
-  echo "  Try: omc stats, omc agents, omc tui"
-else
-  echo "⚠ CLI installed but 'omc' not in PATH."
-  echo "  You may need to restart your terminal or add npm/bun global bin to PATH."
-fi
-```
+All functionality is available through the plugin system:
+- Use `/oh-my-claudecode:help` for guidance
+- Use `/oh-my-claudecode:doctor` for diagnostics
 
-### If User Chooses NO:
-
-Skip this step. User can install later with `npm install -g oh-my-claude-sisyphus`.
+Skip this step - the plugin provides all features.
 
 ## Step 4: Verify Plugin Installation
 
@@ -382,7 +511,7 @@ Just include these words naturally in your request:
 | eco | Token-efficient mode | "eco refactor the API" |
 | plan | Planning interview | "plan the new endpoints" |
 
-Combine them: "ralph ulw: migrate the database"
+**ralph includes ultrawork:** When you activate ralph mode, it automatically includes ultrawork's parallel execution. No need to combine keywords.
 
 MCP SERVERS:
 Run /oh-my-claudecode:mcp-setup to add tools like web search, GitHub, etc.
@@ -469,6 +598,16 @@ echo ""
 echo "If you enjoy oh-my-claudecode, consider starring the repo:"
 echo "  https://github.com/Yeachan-Heo/oh-my-claudecode"
 echo ""
+```
+
+### Clear Setup State on Completion
+
+After Step 8 completes (regardless of star choice), clear the setup state:
+
+```bash
+# Setup complete - clear state file
+rm -f ".omc/state/setup-state.json"
+echo "Setup completed successfully!"
 ```
 
 ## Keeping Up to Date

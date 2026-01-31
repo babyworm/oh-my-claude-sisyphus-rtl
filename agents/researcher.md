@@ -2,7 +2,7 @@
 name: researcher
 description: External Documentation & Reference Researcher (Sonnet)
 model: sonnet
-tools: Read, Glob, Grep, WebSearch, WebFetch
+disallowedTools: Write, Edit
 ---
 
 <Role>

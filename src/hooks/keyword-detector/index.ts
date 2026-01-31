@@ -7,7 +7,22 @@
  * Ported from oh-my-opencode's keyword-detector hook.
  */
 
-export type KeywordType = 'ralph' | 'autopilot' | 'ultrawork' | 'ultrathink' | 'search' | 'analyze';
+export type KeywordType =
+  | 'cancel'      // Priority 1
+  | 'ralph'       // Priority 2
+  | 'autopilot'   // Priority 3
+  | 'ultrapilot'  // Priority 4
+  | 'ultrawork'   // Priority 5
+  | 'ecomode'     // Priority 6
+  | 'swarm'       // Priority 7
+  | 'pipeline'    // Priority 8
+  | 'ralplan'     // Priority 9
+  | 'plan'        // Priority 10
+  | 'tdd'         // Priority 11
+  | 'research'    // Priority 12
+  | 'ultrathink'  // Priority 13
+  | 'deepsearch'  // Priority 14
+  | 'analyze';    // Priority 15
 
 export interface DetectedKeyword {
   type: KeywordType;
@@ -42,19 +57,32 @@ const AUTOPILOT_PHRASE_PATTERNS = [
  * Keyword patterns for each mode
  */
 const KEYWORD_PATTERNS: Record<KeywordType, RegExp> = {
+  cancel: /\b(cancelomc|stopomc)\b/i,
   ralph: /\b(ralph|don't stop|must complete|until done)\b/i,
   autopilot: /\b(autopilot|auto pilot|auto-pilot|autonomous|full auto|fullsend)\b/i,
-  ultrawork: /\b(ultrawork|ulw)\b/i,
-  ultrathink: /\b(ultrathink|think)\b/i,
-  search: /\b(search|find|locate|lookup|explore|discover|scan|grep|query|browse|detect|trace|seek|track|pinpoint|hunt)\b|where\s+is|show\s+me|list\s+all/i,
-  analyze: /\b(analyze|analyse|investigate|examine|research|study|deep.?dive|inspect|audit|evaluate|assess|review|diagnose|scrutinize|dissect|debug|comprehend|interpret|breakdown|understand)\b|why\s+is|how\s+does|how\s+to/i
+  ultrapilot: /\b(ultrapilot|ultra-pilot)\b|\bparallel\s+build\b|\bswarm\s+build\b/i,
+  ultrawork: /\b(ultrawork|ulw|uw)\b/i,
+  ecomode: /\b(eco|ecomode|eco-mode|efficient|save-tokens|budget)\b/i,
+  swarm: /\bswarm\s+\d+\s+agents?\b|\bcoordinated\s+agents\b/i,
+  pipeline: /\b(pipeline)\b|\bchain\s+agents\b/i,
+  ralplan: /\b(ralplan)\b/i,
+  plan: /\bplan\s+(this|the)\b/i,
+  tdd: /\b(tdd)\b|\btest\s+first\b|\bred\s+green\b/i,
+  research: /\b(research)\b|\banalyze\s+data\b|\bstatistics\b/i,
+  ultrathink: /\b(ultrathink|think hard|think deeply)\b/i,
+  deepsearch: /\b(deepsearch)\b|\bsearch\s+(the\s+)?(codebase|code|files?|project)\b|\bfind\s+(in\s+)?(codebase|code|all\s+files?)\b/i,
+  analyze: /\b(deep\s*analyze)\b|\binvestigate\s+(the|this|why)\b|\bdebug\s+(the|this|why)\b/i
 };
 
 /**
  * Priority order for keyword detection
  * Higher priority keywords take precedence
  */
-const KEYWORD_PRIORITY: KeywordType[] = ['ralph', 'autopilot', 'ultrawork', 'ultrathink', 'search', 'analyze'];
+const KEYWORD_PRIORITY: KeywordType[] = [
+  'cancel', 'ralph', 'autopilot', 'ultrapilot', 'ultrawork', 'ecomode',
+  'swarm', 'pipeline', 'ralplan', 'plan', 'tdd', 'research',
+  'ultrathink', 'deepsearch', 'analyze'
+];
 
 /**
  * Remove code blocks from text to prevent false positives
@@ -139,23 +167,50 @@ export function hasKeyword(text: string): boolean {
 }
 
 /**
- * Get the highest priority keyword detected
+ * Get all detected keywords with conflict resolution applied
  */
-export function getPrimaryKeyword(text: string): DetectedKeyword | null {
+export function getAllKeywords(text: string): KeywordType[] {
   const cleanText = removeCodeBlocks(text);
   const detected = detectKeywordsWithType(cleanText);
 
-  if (detected.length === 0) {
+  if (detected.length === 0) return [];
+
+  let types = [...new Set(detected.map(d => d.type))];
+
+  // Exclusive: cancel suppresses everything
+  if (types.includes('cancel')) return ['cancel'];
+
+  // Mutual exclusion: ecomode beats ultrawork
+  if (types.includes('ecomode') && types.includes('ultrawork')) {
+    types = types.filter(t => t !== 'ultrawork');
+  }
+
+  // Mutual exclusion: ultrapilot beats autopilot
+  if (types.includes('ultrapilot') && types.includes('autopilot')) {
+    types = types.filter(t => t !== 'autopilot');
+  }
+
+  // Sort by priority order
+  return KEYWORD_PRIORITY.filter(k => types.includes(k));
+}
+
+/**
+ * Get the highest priority keyword detected with conflict resolution
+ */
+export function getPrimaryKeyword(text: string): DetectedKeyword | null {
+  const allKeywords = getAllKeywords(text);
+
+  if (allKeywords.length === 0) {
     return null;
   }
 
-  // Return highest priority (first in KEYWORD_PRIORITY order)
-  for (const type of KEYWORD_PRIORITY) {
-    const match = detected.find(d => d.type === type);
-    if (match) {
-      return match;
-    }
-  }
+  // Get the highest priority keyword type
+  const primaryType = allKeywords[0];
 
-  return detected[0];
+  // Find the original detected keyword for this type
+  const cleanText = removeCodeBlocks(text);
+  const detected = detectKeywordsWithType(cleanText);
+  const match = detected.find(d => d.type === primaryType);
+
+  return match || null;
 }

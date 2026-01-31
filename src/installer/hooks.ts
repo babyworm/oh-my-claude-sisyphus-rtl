@@ -5,13 +5,8 @@
  * Claude Code hooks are configured in settings.json and run as shell commands.
  * These scripts receive JSON input via stdin and output JSON to modify behavior.
  *
- * This module provides DUAL implementations:
- * - Bash scripts (.sh) for Unix-like systems (macOS, Linux)
- * - Node.js scripts (.mjs) for cross-platform support (Windows, macOS, Linux)
- *
- * The platform is detected at install time, or can be overridden with:
- *   OMC_USE_NODE_HOOKS=1  - Force Node.js hooks on any platform
- *   OMC_USE_BASH_HOOKS=1  - Force Bash hooks (Unix only)
+ * This module provides Node.js scripts (.mjs) for cross-platform support (Windows, macOS, Linux).
+ * Bash scripts were deprecated in v3.8.6 and removed in v3.9.0.
  */
 
 import { homedir } from 'os';
@@ -43,8 +38,8 @@ function getPackageDir(): string {
 function loadTemplate(filename: string): string {
   const templatePath = join(getPackageDir(), 'templates', 'hooks', filename);
   if (!existsSync(templatePath)) {
-    console.error(`FATAL: Hook template not found: ${templatePath}`);
-    process.exit(1);
+    // .sh templates have been removed in favor of .mjs - return empty string for missing bash templates
+    return '';
   }
   return readFileSync(templatePath, 'utf-8');
 }
@@ -61,17 +56,12 @@ export function isWindows(): boolean {
   return process.platform === 'win32';
 }
 
-/** Check if Node.js hooks should be used (env override or Windows) */
+/**
+ * Check if Node.js hooks should be used.
+ * @deprecated Always returns true. Bash hooks were removed in v3.9.0.
+ */
 export function shouldUseNodeHooks(): boolean {
-  // Environment variable overrides
-  if (process.env.OMC_USE_NODE_HOOKS === '1') {
-    return true;
-  }
-  if (process.env.OMC_USE_BASH_HOOKS === '1') {
-    return false;
-  }
-  // Default: use Node.js on Windows, Bash elsewhere
-  return isWindows();
+  return true;
 }
 
 /** Get the Claude config directory path (cross-platform) */
@@ -282,12 +272,6 @@ Ralph mode auto-activates Ultrawork for maximum parallel execution. Follow these
 Continue working until the task is truly done.
 `;
 
-/** Keyword detector hook script - loaded from templates/hooks/keyword-detector.sh */
-export const KEYWORD_DETECTOR_SCRIPT = loadTemplate('keyword-detector.sh');
-
-/** Stop continuation hook script - loaded from templates/hooks/stop-continuation.sh */
-export const STOP_CONTINUATION_SCRIPT = loadTemplate('stop-continuation.sh');
-
 // =============================================================================
 // NODE.JS HOOK SCRIPTS (Cross-platform: Windows, macOS, Linux)
 // =============================================================================
@@ -298,94 +282,18 @@ export const KEYWORD_DETECTOR_SCRIPT_NODE = loadTemplate('keyword-detector.mjs')
 /** Node.js stop continuation hook script - loaded from templates/hooks/stop-continuation.mjs */
 export const STOP_CONTINUATION_SCRIPT_NODE = loadTemplate('stop-continuation.mjs');
 
-// =============================================================================
-// PERSISTENT MODE HOOK SCRIPTS
-// =============================================================================
-
-/** Persistent mode Bash script - loaded from templates/hooks/persistent-mode.sh */
-export const PERSISTENT_MODE_SCRIPT = loadTemplate('persistent-mode.sh');
-
-/** Session start Bash script - loaded from templates/hooks/session-start.sh */
-export const SESSION_START_SCRIPT = loadTemplate('session-start.sh');
-
 /** Node.js persistent mode hook script - loaded from templates/hooks/persistent-mode.mjs */
 export const PERSISTENT_MODE_SCRIPT_NODE = loadTemplate('persistent-mode.mjs');
 
 /** Node.js session start hook script - loaded from templates/hooks/session-start.mjs */
 export const SESSION_START_SCRIPT_NODE = loadTemplate('session-start.mjs');
 
-// =============================================================================
-// POST-TOOL-USE HOOK (Remember Tag Processing)
-// =============================================================================
-
-/** Post-tool-use Bash script - loaded from templates/hooks/post-tool-use.sh */
-export const POST_TOOL_USE_SCRIPT = loadTemplate('post-tool-use.sh');
-
 /** Post-tool-use Node.js script - loaded from templates/hooks/post-tool-use.mjs */
 export const POST_TOOL_USE_SCRIPT_NODE = loadTemplate('post-tool-use.mjs');
 
 // =============================================================================
-// SETTINGS CONFIGURATION (Platform-aware)
+// SETTINGS CONFIGURATION
 // =============================================================================
-
-/**
- * Settings.json hooks configuration for Bash (Unix)
- * Configures Claude Code to run our bash hook scripts
- */
-export const HOOKS_SETTINGS_CONFIG_BASH = {
-  hooks: {
-    UserPromptSubmit: [
-      {
-        hooks: [
-          {
-            type: "command" as const,
-            command: "bash $HOME/.claude/hooks/keyword-detector.sh"
-          }
-        ]
-      }
-    ],
-    SessionStart: [
-      {
-        hooks: [
-          {
-            type: "command" as const,
-            command: "bash $HOME/.claude/hooks/session-start.sh"
-          }
-        ]
-      }
-    ],
-    PreToolUse: [
-      {
-        hooks: [
-          {
-            type: "command" as const,
-            command: "bash $HOME/.claude/hooks/pre-tool-use.sh"
-          }
-        ]
-      }
-    ],
-    PostToolUse: [
-      {
-        hooks: [
-          {
-            type: "command" as const,
-            command: "bash $HOME/.claude/hooks/post-tool-use.sh"
-          }
-        ]
-      }
-    ],
-    Stop: [
-      {
-        hooks: [
-          {
-            type: "command" as const,
-            command: "bash $HOME/.claude/hooks/persistent-mode.sh"
-          }
-        ]
-      }
-    ]
-  }
-};
 
 /**
  * Settings.json hooks configuration for Node.js (Cross-platform)
@@ -459,42 +367,21 @@ export const HOOKS_SETTINGS_CONFIG_NODE = {
 };
 
 /**
- * Get the appropriate hooks settings config for the current platform
+ * Get the hooks settings config (Node.js only).
  */
-export function getHooksSettingsConfig(): typeof HOOKS_SETTINGS_CONFIG_BASH {
-  return shouldUseNodeHooks() ? HOOKS_SETTINGS_CONFIG_NODE : HOOKS_SETTINGS_CONFIG_BASH;
+export function getHooksSettingsConfig(): typeof HOOKS_SETTINGS_CONFIG_NODE {
+  return HOOKS_SETTINGS_CONFIG_NODE;
 }
 
-/**
- * Legacy: Settings.json hooks configuration (Bash)
- * @deprecated Use getHooksSettingsConfig() for cross-platform support
- */
-export const HOOKS_SETTINGS_CONFIG = HOOKS_SETTINGS_CONFIG_BASH;
-
 // =============================================================================
-// HOOK SCRIPTS EXPORTS (Platform-aware)
+// HOOK SCRIPTS EXPORTS
 // =============================================================================
-
-/**
- * Get Bash hook scripts (Unix only)
- * Returns a record of filename -> content for all bash hooks
- */
-export function getHookScriptsBash(): Record<string, string> {
-  return {
-    'keyword-detector.sh': loadTemplate('keyword-detector.sh'),
-    'stop-continuation.sh': loadTemplate('stop-continuation.sh'),
-    'persistent-mode.sh': loadTemplate('persistent-mode.sh'),
-    'session-start.sh': loadTemplate('session-start.sh'),
-    'pre-tool-use.sh': loadTemplate('pre-tool-use.sh'),
-    'post-tool-use.sh': loadTemplate('post-tool-use.sh')
-  };
-}
 
 /**
  * Get Node.js hook scripts (Cross-platform)
  * Returns a record of filename -> content for all Node.js hooks
  */
-export function getHookScriptsNode(): Record<string, string> {
+export function getHookScripts(): Record<string, string> {
   return {
     'keyword-detector.mjs': loadTemplate('keyword-detector.mjs'),
     'stop-continuation.mjs': loadTemplate('stop-continuation.mjs'),
@@ -504,20 +391,3 @@ export function getHookScriptsNode(): Record<string, string> {
     'post-tool-use.mjs': loadTemplate('post-tool-use.mjs')
   };
 }
-
-/**
- * Get the appropriate hook scripts for the current platform
- */
-export function getHookScripts(): Record<string, string> {
-  return shouldUseNodeHooks() ? getHookScriptsNode() : getHookScriptsBash();
-}
-
-// Legacy exports for backward compatibility (these call the loader functions)
-/** @deprecated Use getHookScriptsBash() instead */
-export const HOOK_SCRIPTS_BASH: Record<string, string> = getHookScriptsBash();
-
-/** @deprecated Use getHookScriptsNode() instead */
-export const HOOK_SCRIPTS_NODE: Record<string, string> = getHookScriptsNode();
-
-/** @deprecated Use getHookScripts() for cross-platform support */
-export const HOOK_SCRIPTS: Record<string, string> = HOOK_SCRIPTS_BASH;
