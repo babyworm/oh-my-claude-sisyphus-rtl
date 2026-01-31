@@ -43,7 +43,7 @@ This skill enhances Claude's capabilities by:
 | **RTL Refactor** | - | `rtl-refactor` | - |
 | **RTL Review** | - | - | `rtl-reviewer` |
 | **RTL Frontend** | - | - | `rtl-fe` |
-| **RTL Verification** | - | `sv-verification` | - |
+| **RTL Verification** | - | - | `sv-verification` |
 | **TLM Modeling** | - | - | `tlm-coder` |
 | **Block Design** | - | - | `block-designer` |
 
@@ -87,8 +87,8 @@ Task(subagent_type="oh-my-claudecode:rtl-refactor", model="sonnet", prompt="Fix 
 // RTL CDC/RDC review → HIGH tier (Opus) - Critical for chip reliability
 Task(subagent_type="oh-my-claudecode:rtl-reviewer", model="opus", prompt="Review CDC issues in the async_fifo module")
 
-// Verification/Testbench → MEDIUM tier (Sonnet)
-Task(subagent_type="oh-my-claudecode:sv-verification", model="sonnet", prompt="Create UVM testbench for FIFO")
+// Verification/Testbench → HIGH tier (Opus) - UVM is complex, poor verification = missed bugs
+Task(subagent_type="oh-my-claudecode:sv-verification", model="opus", prompt="Create UVM testbench for FIFO")
 ```
 
 ## RTL Project Detection & Workflow
@@ -114,7 +114,7 @@ When working on RTL projects, **always run verification skills**:
 | RTL implementation | `rtl-coder` | opus | `/rtl-lint` |
 | Lint fixes | `rtl-refactor` | sonnet | `/rtl-lint` |
 | CDC/RDC review | `rtl-reviewer` | opus | - |
-| Testbench creation | `sv-verification` | sonnet | `/rtl-verify` |
+| Testbench creation | `sv-verification` | opus | `/rtl-verify` |
 | Synthesis check | `rtl-fe` | opus | `/rtl-synth` |
 
 ### Example: RTL Implementation Flow
