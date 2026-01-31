@@ -1,0 +1,34 @@
+{
+  "name": "rtl-lint",
+  "description": "Run lint checks on RTL code to catch syntax, semantic, and style issues",
+  "version": "0.1.0",
+  "category": "rtl",
+  "tags": ["rtl", "lint", "verification", "quality"],
+  "invocation": {
+    "command": "rtl-lint",
+    "aliases": ["lint-rtl", "check-rtl"]
+  },
+  "parameters": [
+    {
+      "name": "files",
+      "description": "Files to lint (default: all in src/)",
+      "required": false,
+      "type": "array"
+    },
+    {
+      "name": "tool",
+      "description": "Lint tool to use",
+      "required": false,
+      "type": "string",
+      "default": "auto",
+      "choices": ["auto", "verilator", "verible", "slang"]
+    },
+    {
+      "name": "strict",
+      "description": "Enable strict checking mode",
+      "required": false,
+      "type": "boolean",
+      "default": false
+    }
+  ]
+}

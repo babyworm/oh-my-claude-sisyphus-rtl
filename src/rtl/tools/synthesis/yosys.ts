@@ -1,0 +1,221 @@
+/**
+ * Yosys Synthesis Tool
+ *
+ * Yosys is an open-source synthesis tool for Verilog/SystemVerilog.
+ * Part of the YosysHQ ecosystem and OSS CAD Suite.
+ *
+ * https://yosyshq.net/yosys/
+ */
+
+import { promisify } from 'util';
+import { exec } from 'child_process';
+import * as fs from 'fs';
+import * as path from 'path';
+import type { SynthesisTool, ToolInput } from '../types.js';
+import type { SynthesisResult, TimingResult, PPAResult, ToolResult } from '../../types.js';
+
+const execAsync = promisify(exec);
+const writeFileAsync = promisify(fs.writeFile);
+
+export class YosysSynth implements SynthesisTool {
+  async isInstalled(): Promise<boolean> {
+    try {
+      const { stdout } = await execAsync('yosys --version');
+      return stdout.includes('Yosys');
+    } catch {
+      return false;
+    }
+  }
+
+  async getVersion(): Promise<string> {
+    try {
+      const { stdout } = await execAsync('yosys --version');
+      const match = stdout.match(/Yosys\s+([\d.+]+)/);
+      return match ? match[1] : 'unknown';
+    } catch {
+      return 'unknown';
+    }
+  }
+
+  async run(input: ToolInput): Promise<ToolResult> {
+    const args = [...(input.args || []), ...input.files];
+    const cmd = `yosys ${args.join(' ')}`;
+
+    try {
+      const { stdout, stderr } = await execAsync(cmd, {
+        env: { ...process.env, ...input.env },
+      });
+      return {
+        success: true,
+        stdout,
+        stderr,
+        exitCode: 0,
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        stdout: error.stdout || '',
+        stderr: error.stderr || '',
+        exitCode: error.code || 1,
+        errors: [error.message],
+      };
+    }
+  }
+
+  /**
+   * Synthesize design using Yosys
+   *
+   * Yosys workflow:
+   * 1. read_verilog design.v
+   * 2. synth (or synth_ice40, synth_xilinx, etc.)
+   * 3. write_verilog netlist.v
+   * 4. stat (for area estimation)
+   */
+  async synthesize(design: string[], constraints: string): Promise<SynthesisResult> {
+    // Generate Yosys script
+    const scriptContent = this.generateYosysScript(design, constraints);
+    const scriptPath = 'synth_script.ys';
+    const netlistPath = 'synthesized.v';
+    const statsPath = 'synth_stats.txt';
+
+    try {
+      // Write script
+      await writeFileAsync(scriptPath, scriptContent);
+
+      // Run Yosys
+      const result = await this.run({
+        files: [],
+        args: ['-s', scriptPath, '-l', statsPath],
+      });
+
+      if (!result.success) {
+        return {
+          success: false,
+          errors: result.errors,
+          stderr: result.stderr,
+        };
+      }
+
+      // Check if netlist was generated
+      if (!fs.existsSync(netlistPath)) {
+        return {
+          success: false,
+          stderr: 'Netlist file not generated',
+        };
+      }
+
+      return {
+        success: true,
+        netlist: netlistPath,
+        stdout: result.stdout,
+        stderr: result.stderr,
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        stderr: error.message,
+      };
+    }
+  }
+
+  /**
+   * Analyze timing
+   *
+   * Note: Yosys doesn't do full timing analysis (needs place & route).
+   * This provides basic delay estimation.
+   */
+  async analyzeTiming(netlist: string): Promise<TimingResult> {
+    // TODO: Integrate with nextpnr for actual timing analysis
+    // For now, return placeholder
+
+    return {
+      criticalPath: {
+        start: 'input',
+        end: 'output',
+        delay: 0,
+      },
+      slack: 0,
+      frequency: 0,
+    };
+  }
+
+  /**
+   * Estimate PPA from synthesis statistics
+   *
+   * Parses Yosys 'stat' command output
+   */
+  async estimatePPA(netlist: string): Promise<PPAResult> {
+    try {
+      // Read synthesis statistics
+      const statsContent = fs.readFileSync('synth_stats.txt', 'utf8');
+
+      // Parse cell count
+      const cellMatch = statsContent.match(/Number of cells:\s+(\d+)/);
+      const cells = cellMatch ? parseInt(cellMatch[1], 10) : 0;
+
+      // Estimate area (rough approximation)
+      const area = cells * 10;  // Assume 10 μm² per cell (very rough)
+
+      // Estimate power (very rough approximation)
+      const power = cells * 0.001;  // 1 μW per cell
+
+      return {
+        area: {
+          cells,
+          area,
+        },
+        power: {
+          dynamic: power * 0.7,
+          static: power * 0.3,
+          total: power,
+        },
+        performance: {
+          frequency: 100,  // Placeholder, needs real timing analysis
+        },
+      };
+    } catch (error) {
+      // Return zeros if parsing fails
+      return {
+        area: { cells: 0, area: 0 },
+        power: { dynamic: 0, static: 0, total: 0 },
+        performance: { frequency: 0 },
+      };
+    }
+  }
+
+  /**
+   * Generate Yosys synthesis script
+   */
+  private generateYosysScript(design: string[], constraints: string): string {
+    const designFiles = design.map(f => `read_verilog ${f}`).join('\n');
+
+    return `
+# Yosys synthesis script
+# Generated by oh-my-claude-rtl
+
+# Read design files
+${designFiles}
+
+# Hierarchy check
+hierarchy -check
+
+# Synthesis
+synth -top top
+
+# Technology mapping (generic)
+dfflibmap -liberty ${constraints || 'cells.lib'}
+abc -liberty ${constraints || 'cells.lib'}
+
+# Clean up
+clean
+
+# Statistics
+stat
+
+# Write netlist
+write_verilog synthesized.v
+
+# Done
+`;
+  }
+}

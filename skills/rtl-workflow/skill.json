@@ -1,0 +1,34 @@
+{
+  "name": "rtl-workflow",
+  "description": "Run complete RTL workflow (lint, verify, synthesize) with automatic failure handling",
+  "version": "0.1.0",
+  "category": "rtl",
+  "tags": ["rtl", "workflow", "automation", "ci-cd"],
+  "invocation": {
+    "command": "rtl-workflow",
+    "aliases": ["workflow-rtl", "run-rtl", "check-rtl-all"]
+  },
+  "parameters": [
+    {
+      "name": "skip-synth",
+      "description": "Skip synthesis stage (faster iteration)",
+      "required": false,
+      "type": "boolean",
+      "default": false
+    },
+    {
+      "name": "coverage",
+      "description": "Collect coverage during verification",
+      "required": false,
+      "type": "boolean",
+      "default": false
+    },
+    {
+      "name": "strict",
+      "description": "Enable strict lint checking",
+      "required": false,
+      "type": "boolean",
+      "default": false
+    }
+  ]
+}

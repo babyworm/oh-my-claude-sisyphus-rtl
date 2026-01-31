@@ -1,0 +1,35 @@
+{
+  "name": "rtl-init",
+  "description": "Initialize a new RTL project with directory structure, Makefile, and templates",
+  "version": "0.1.0",
+  "category": "rtl",
+  "tags": ["rtl", "init", "setup", "project"],
+  "invocation": {
+    "command": "rtl-init",
+    "aliases": ["rtl-setup", "init-rtl"]
+  },
+  "parameters": [
+    {
+      "name": "project-name",
+      "description": "Name of the RTL project",
+      "required": true,
+      "type": "string"
+    },
+    {
+      "name": "language",
+      "description": "RTL language (verilog or systemverilog)",
+      "required": false,
+      "type": "string",
+      "default": "systemverilog",
+      "choices": ["verilog", "systemverilog"]
+    },
+    {
+      "name": "template",
+      "description": "Project template type",
+      "required": false,
+      "type": "string",
+      "default": "basic",
+      "choices": ["basic", "fifo", "counter", "pipeline"]
+    }
+  ]
+}

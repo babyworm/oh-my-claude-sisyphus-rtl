@@ -1,0 +1,40 @@
+{
+  "name": "rtl-synth",
+  "description": "Synthesize RTL design and analyze PPA (Performance, Power, Area)",
+  "version": "0.1.0",
+  "category": "rtl",
+  "tags": ["rtl", "synthesis", "ppa", "timing"],
+  "invocation": {
+    "command": "rtl-synth",
+    "aliases": ["synth-rtl", "synthesize"]
+  },
+  "parameters": [
+    {
+      "name": "design",
+      "description": "Top module to synthesize",
+      "required": false,
+      "type": "string"
+    },
+    {
+      "name": "tool",
+      "description": "Synthesis tool to use",
+      "required": false,
+      "type": "string",
+      "default": "auto",
+      "choices": ["auto", "yosys", "dc", "genus"]
+    },
+    {
+      "name": "tech",
+      "description": "Target technology library",
+      "required": false,
+      "type": "string",
+      "default": "generic"
+    },
+    {
+      "name": "clock",
+      "description": "Clock frequency target (e.g., 100MHz)",
+      "required": false,
+      "type": "string"
+    }
+  ]
+}

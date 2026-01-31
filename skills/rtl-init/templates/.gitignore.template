@@ -1,0 +1,41 @@
+# Simulation artifacts
+*.vcd
+*.fst
+*.vvp
+*.out
+a.out
+obj_dir/
+*.log
+
+# Synthesis outputs
+synth/*.v
+synth/*.json
+synth/*.blif
+synth/*.edif
+
+# Reports
+reports/*.txt
+reports/*.rpt
+reports/*.html
+
+# Coverage
+coverage/
+*.dat
+
+# Waveforms
+*.vcd
+*.fst
+*.ghw
+
+# Editor artifacts
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Build artifacts
+build/
+dist/
+*.o
+*.so
+*.a

@@ -38,6 +38,14 @@ This skill enhances Claude's capabilities by:
 | **Build** | `build-fixer-low` | `build-fixer` | - |
 | **TDD** | `tdd-guide-low` | `tdd-guide` | - |
 | **Code Review** | `code-reviewer-low` | - | `code-reviewer` |
+| **RTL Architecture** | - | - | `rtl-architect` |
+| **RTL Coding** | - | - | `rtl-coder` |
+| **RTL Refactor** | - | `rtl-refactor` | - |
+| **RTL Review** | - | - | `rtl-reviewer` |
+| **RTL Frontend** | - | - | `rtl-fe` |
+| **RTL Verification** | - | `sv-verification` | - |
+| **TLM Modeling** | - | - | `tlm-coder` |
+| **Block Design** | - | - | `block-designer` |
 
 ### Tier Selection Guide
 
@@ -66,6 +74,57 @@ Task(subagent_type="oh-my-claudecode:explore", model="haiku", prompt="Find where
 
 // Thorough search → MEDIUM tier
 Task(subagent_type="oh-my-claudecode:explore-medium", model="sonnet", prompt="Find all authentication patterns in the codebase")
+
+// RTL architecture design → HIGH tier (Opus)
+Task(subagent_type="oh-my-claudecode:rtl-architect", model="opus", prompt="Design microarchitecture for FIFO with AXI interface")
+
+// RTL implementation → HIGH tier (Opus) - RTL bugs are expensive!
+Task(subagent_type="oh-my-claudecode:rtl-coder", model="opus", prompt="Implement the FIFO module from block spec")
+
+// RTL lint fixes → MEDIUM tier (Sonnet)
+Task(subagent_type="oh-my-claudecode:rtl-refactor", model="sonnet", prompt="Fix lint warnings in fifo.sv")
+
+// RTL CDC/RDC review → HIGH tier (Opus) - Critical for chip reliability
+Task(subagent_type="oh-my-claudecode:rtl-reviewer", model="opus", prompt="Review CDC issues in the async_fifo module")
+
+// Verification/Testbench → MEDIUM tier (Sonnet)
+Task(subagent_type="oh-my-claudecode:sv-verification", model="sonnet", prompt="Create UVM testbench for FIFO")
+```
+
+## RTL Project Detection & Workflow
+
+**Auto-detect RTL projects** by checking for:
+- `.rtl-config.json` file
+- `*.sv`, `*.v`, `*.svh` files in `src/` or `rtl/`
+- `tb/` or `testbench/` directories
+
+### RTL-Specific Workflow
+
+When working on RTL projects, **always run verification skills**:
+
+1. **After RTL changes**: Run `/rtl-lint` to check for syntax/semantic errors
+2. **After lint passes**: Run `/rtl-verify` to simulate and test
+3. **Before commit**: Run `/rtl-workflow` for full verification (lint → verify → synth)
+
+### RTL Delegation Rules
+
+| Task | Agent | Model | Skill to Run After |
+|------|-------|-------|-------------------|
+| Architecture design | `rtl-architect` | opus | - |
+| RTL implementation | `rtl-coder` | opus | `/rtl-lint` |
+| Lint fixes | `rtl-refactor` | sonnet | `/rtl-lint` |
+| CDC/RDC review | `rtl-reviewer` | opus | - |
+| Testbench creation | `sv-verification` | sonnet | `/rtl-verify` |
+| Synthesis check | `rtl-fe` | opus | `/rtl-synth` |
+
+### Example: RTL Implementation Flow
+
+```
+1. Task(subagent_type="rtl-coder", model="opus", prompt="Implement FIFO module")
+2. Skill(skill="rtl-lint")  # Check lint errors
+3. If lint fails → Task(subagent_type="rtl-refactor", model="sonnet", prompt="Fix lint errors")
+4. Skill(skill="rtl-verify")  # Run simulation
+5. If verify fails → Debug and iterate
 ```
 
 ## Background Execution Rules
@@ -75,6 +134,9 @@ Task(subagent_type="oh-my-claudecode:explore-medium", model="sonnet", prompt="Fi
 - Build processes: npm run build, make, tsc
 - Test suites: npm test, pytest, cargo test
 - Docker operations: docker build, docker pull
+- RTL synthesis: yosys, vivado synthesis
+- RTL simulation: verilator, iverilog, vcs (long simulations)
+- Coverage collection: coverage merging operations
 
 **Run Blocking** (foreground):
 - Quick status checks: git status, ls, pwd

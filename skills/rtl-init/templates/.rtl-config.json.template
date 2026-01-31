@@ -1,0 +1,46 @@
+{
+  "project": {
+    "name": "{{PROJECT_NAME}}",
+    "language": "{{LANGUAGE}}",
+    "version": "0.1.0"
+  },
+  "tools": {
+    "lsp": {
+      "preferred": "{{LSP_TOOL}}",
+      "fallback": ["verible", "svls"]
+    },
+    "lint": {
+      "preferred": "{{LINT_TOOL}}",
+      "rules": "strict",
+      "ignore": []
+    },
+    "simulation": {
+      "preferred": "{{SIM_TOOL}}",
+      "fallback": "iverilog",
+      "coverage": {
+        "enabled": true,
+        "types": ["line", "toggle", "fsm"]
+      }
+    },
+    "synthesis": {
+      "preferred": "{{SYNTH_TOOL}}",
+      "target": {
+        "technology": "generic",
+        "clock": "100MHz"
+      }
+    }
+  },
+  "paths": {
+    "rtl": "src",
+    "testbench": "tb",
+    "synthesis": "synth",
+    "reports": "reports"
+  },
+  "includePaths": [
+    "src",
+    "tb"
+  ],
+  "defines": {
+    "SIMULATION": "1"
+  }
+}
